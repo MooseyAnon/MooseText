@@ -109,6 +109,8 @@ void insertNewLine();
 
 void processKeypress();
 
+char * prompt(char *);
+
 int readKey();
 int readEscapeSequence();
 void refreshScreen();
@@ -410,7 +412,9 @@ char * editorRowsToString(int *buflen)
 
 void editorSave()
 {
-    if (CONFIG.filename == NULL) { return; }
+    if (CONFIG.filename == NULL) {
+        CONFIG.filename = prompt("Enter filename to save as: %s");
+    }
 
     int len;
     char *buf = editorRowsToString(&len);
@@ -779,6 +783,40 @@ void setStatusMessage(const char *fmt, ...)
     va_end(ap);
 
     CONFIG.statusMsg_time = time(NULL);
+}
+
+
+char * prompt(char *prompt)
+{
+    size_t bufsize = 128;
+    char *buf = malloc(bufsize);
+
+    size_t buflen = 0;
+    buf[0] = '\0';
+
+    while (1)
+    {
+        setStatusMessage(prompt, buf);
+        refreshScreen();
+
+        int c = readKey();
+
+        if (c == '\r') {
+            if (buflen != 0) {
+                setStatusMessage("");
+                return buf;
+            }
+        }
+
+        else if (!iscntrl(c) && c < 128) {
+            if (buflen == bufsize - 1) {
+                bufsize *= 2;
+                buf = realloc(buf, bufsize);
+            }
+            buf[buflen++] = c;
+            buf[buflen] = '\0';
+        }
+    }
 }
 
 /*** output ***/
