@@ -805,14 +805,18 @@ char * prompt(char *prompt)
 
         int c = readKey();
 
+        if (c == DEL_KEY || c == CTRL_KEY('h') || c == BACKSPACE) {
+            if (buflen != 0) { buf[--buflen] = '\0'; }
+        }
+
         // add escape key
-        if (c == '\x1b') {
+        else if (c == '\x1b') {
             setStatusMessage("");
             free(buf);
             return NULL;
         }
 
-        if (c == '\r') {
+        else if (c == '\r') {
             if (buflen != 0) {
                 setStatusMessage("");
                 return buf;
