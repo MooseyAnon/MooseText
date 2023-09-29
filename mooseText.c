@@ -414,6 +414,10 @@ void editorSave()
 {
     if (CONFIG.filename == NULL) {
         CONFIG.filename = prompt("Enter filename to save as: %s");
+        if (CONFIG.filename == NULL) {
+            setStatusMessage("Save aborted!");
+            return;
+        }
     }
 
     int len;
@@ -800,6 +804,13 @@ char * prompt(char *prompt)
         refreshScreen();
 
         int c = readKey();
+
+        // add escape key
+        if (c == '\x1b') {
+            setStatusMessage("");
+            free(buf);
+            return NULL;
+        }
 
         if (c == '\r') {
             if (buflen != 0) {
