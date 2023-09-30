@@ -94,12 +94,15 @@ char * editorRowsToString(int *);
 void editorScroll();
 void editorUpdateRow(editorRow *);
 int editorRowCxToRx(editorRow *, int);
+int editorRowRxToCx(editorRow *, int);
 void editorRowInsertChar(editorRow *, int, int);
 void editorRowDelChar(editorRow *, int);
 void editorFreerRow(editorRow *);
 void editorSave();
 void editorDelRow(int);
 void editorRowAppendString(editorRow *, char *, size_t);
+
+void find();
 
 int getWindowSize(int *, int *);
 
@@ -142,7 +145,7 @@ int main(int argc, const char *argv[])
         editorOpen(argv[1]);
     }
 
-    setStatusMessage("HELP:  Ctrl-S = save | Ctrl-Q = quit");
+    setStatusMessage("HELP:  Ctrl-S = save | Ctrl-Q = quit | Ctrl-F = find");
 
     while (1)
     {
@@ -494,6 +497,24 @@ int editorRowCxToRx(editorRow *row, int cursorX)
 }
 
 
+int editorRowRxToCx(editorRow *row, int rx)
+{
+    int cur_rx = 0;
+    int cx;
+
+    for (cx = 0; cx < row->rowSize; cx++)
+    {
+        if (row->characters[cx] == '\t') {
+            cur_rx += (MOOSE_TAB_STOP - 1) - (cur_rx % MOOSE_TAB_STOP);
+        }
+        cur_rx++;
+
+        if (cur_rx > rx) { return cx; }
+    }
+    return cx;
+}
+
+
 void editorRowInsertChar(editorRow *row, int at, int c)
 {
     if (at < 0 || at > row->rowSize) { at = row->rowSize; }
@@ -724,6 +745,10 @@ void processKeypress()
 
         case END_KEY:
             CONFIG.cursorX = CONFIG.screenCols - 1;
+            break;
+
+        case CTRL_KEY('f'):
+            find();
             break;
 
         case BACKSPACE:
@@ -1019,4 +1044,28 @@ void append(struct appendString *as, const char *s, int len)
 void stringFree(struct appendString *as)
 {
     free(as->s);
+}
+
+
+/*** search ***/
+
+void find()
+{
+    char *query = prompt("Search: %s (ESC to cancel)");
+    if (query == NULL) { return; }
+
+    int i;
+    for (i = 0; i < CONFIG.numRows; i++)
+    {
+        editorRow *row = &CONFIG.row[i];
+        char *match = strstr(row->render, query);
+
+        if (match) {
+            CONFIG.cursorY = i;
+            CONFIG.cursorX = editorRowCxToRx(row, match - row->render);
+            CONFIG.rowOffset = CONFIG.numRows;
+            break;
+        }
+    }
+    free(query);
 }
