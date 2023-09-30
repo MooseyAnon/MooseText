@@ -1061,7 +1061,7 @@ void find()
     int saved_colOff = CONFIG.colOffset;
     int saved_rowOff = CONFIG.rowOffset;
 
-    char *query = prompt("Search: %s (ESC to cancel)", findCallback);
+    char *query = prompt("Search: %s (Use ESC/Arrows/Enter)", findCallback);
 
     if (query) {
         free(query);
@@ -1078,16 +1078,44 @@ void find()
 
 void findCallback(char *query, int key)
 {
-    if (key == '\r' || key == '\x1b') { return; }
+    static int last_match = -1;
+    static int direction = 1;
 
+    if (key == '\r' || key == '\x1b') {
+        last_match = -1;
+        direction = 1;
+        return;
+    }
+
+    else if (key == ARROW_RIGHT || key == ARROW_DOWN) {
+        direction = 1;
+    }
+
+    else if (key == ARROW_LEFT || key == ARROW_UP) {
+        direction = -1;
+    }
+
+    else {
+        last_match = -1;
+        direction = 1;
+    }
+
+    if (last_match == -1) { direction = 1; }
+
+    int current = last_match;
     int i;
     for (i = 0; i < CONFIG.numRows; i++)
     {
-        editorRow *row = &CONFIG.row[i];
+        current += direction;
+        if (current == -1) { current = CONFIG.numRows - 1; }
+        else if (current == CONFIG.numRows) { current = 0; }
+
+        editorRow *row = &CONFIG.row[current];
         char *match = strstr(row->render, query);
 
         if (match) {
-            CONFIG.cursorY = i;
+            last_match = current;
+            CONFIG.cursorY = current;
             CONFIG.cursorX = editorRowCxToRx(row, match - row->render);
             CONFIG.rowOffset = CONFIG.numRows;
             break;
