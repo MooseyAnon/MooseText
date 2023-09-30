@@ -103,6 +103,7 @@ void editorDelRow(int);
 void editorRowAppendString(editorRow *, char *, size_t);
 
 void find();
+void findCallback(char *, int);
 
 int getWindowSize(int *, int *);
 
@@ -112,7 +113,7 @@ void insertNewLine();
 
 void processKeypress();
 
-char * prompt(char *);
+char * prompt(char *, void (*callback)(char *, int));
 
 int readKey();
 int readEscapeSequence();
@@ -416,7 +417,7 @@ char * editorRowsToString(int *buflen)
 void editorSave()
 {
     if (CONFIG.filename == NULL) {
-        CONFIG.filename = prompt("Enter filename to save as: %s");
+        CONFIG.filename = prompt("Enter filename to save as: %s", NULL);
         if (CONFIG.filename == NULL) {
             setStatusMessage("Save aborted!");
             return;
@@ -815,7 +816,7 @@ void setStatusMessage(const char *fmt, ...)
 }
 
 
-char * prompt(char *prompt)
+char * prompt(char *prompt, void (*callback)(char *, int))
 {
     size_t bufsize = 128;
     char *buf = malloc(bufsize);
@@ -837,6 +838,7 @@ char * prompt(char *prompt)
         // add escape key
         else if (c == '\x1b') {
             setStatusMessage("");
+            if (callback) { callback(buf, c); }
             free(buf);
             return NULL;
         }
@@ -844,6 +846,7 @@ char * prompt(char *prompt)
         else if (c == '\r') {
             if (buflen != 0) {
                 setStatusMessage("");
+                if (callback) { callback(buf, c); }
                 return buf;
             }
         }
@@ -856,6 +859,8 @@ char * prompt(char *prompt)
             buf[buflen++] = c;
             buf[buflen] = '\0';
         }
+
+        if (callback) { callback(buf, c); }
     }
 }
 
@@ -1051,8 +1056,17 @@ void stringFree(struct appendString *as)
 
 void find()
 {
-    char *query = prompt("Search: %s (ESC to cancel)");
-    if (query == NULL) { return; }
+    char *query = prompt("Search: %s (ESC to cancel)", findCallback);
+
+    if (query) {
+        free(query);
+    }
+}
+
+
+void findCallback(char *query, int key)
+{
+    if (key == '\r' || key == '\x1b') { return; }
 
     int i;
     for (i = 0; i < CONFIG.numRows; i++)
@@ -1067,5 +1081,4 @@ void find()
             break;
         }
     }
-    free(query);
 }
