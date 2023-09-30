@@ -1056,10 +1056,22 @@ void stringFree(struct appendString *as)
 
 void find()
 {
+    int saved_cx = CONFIG.cursorX;
+    int saved_cy = CONFIG.cursorY;
+    int saved_colOff = CONFIG.colOffset;
+    int saved_rowOff = CONFIG.rowOffset;
+
     char *query = prompt("Search: %s (ESC to cancel)", findCallback);
 
     if (query) {
         free(query);
+    }
+
+    else {
+        CONFIG.cursorX = saved_cx;
+        CONFIG.cursorY = saved_cy;
+        CONFIG.colOffset = saved_colOff;
+        CONFIG.rowOffset = saved_rowOff;
     }
 }
 
