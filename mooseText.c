@@ -36,6 +36,8 @@ typedef struct editorRow
     int renderSize;
     char *render;
 
+    unsigned char *highlight;
+
 } editorRow;
 
 
@@ -120,6 +122,9 @@ int readEscapeSequence();
 void refreshScreen();
 
 void setStatusMessage(const char *, ...);
+int syntaxToColor(int);
+
+void updateSyntax(editorRow *);
 
 enum KEYS
 {
@@ -133,6 +138,13 @@ enum KEYS
     HOME_KEY,
     PAGE_UP,
     PAGE_DOWN,
+};
+
+
+enum HIGHLIGHT
+{
+    HL_NORMAL = 0,
+    HL_NUMBER,
 };
 
 /*** init ***/
@@ -453,6 +465,7 @@ void editorFreerRow(editorRow *row)
 {
     free(row->render);
     free(row->characters);
+    free(row->highlight);
 }
 
 
@@ -552,6 +565,7 @@ void editorInsertRow(int at, char *s, size_t len)
 
     CONFIG.row[at].renderSize = 0;
     CONFIG.row[at].render = NULL;
+    CONFIG.row[at].highlight = NULL;
     editorUpdateRow(&CONFIG.row[at]);
 
     CONFIG.numRows++;
@@ -603,6 +617,8 @@ void editorUpdateRow(editorRow *row)
     }
     row->render[i] = '\0';
     row->renderSize = i;
+
+    updateSyntax(row);
 }
 
 /*** editor operations **/
@@ -918,7 +934,31 @@ void drawRows(struct appendString *as)
 
             if (len > CONFIG.screenCols) { len = CONFIG.screenCols; }
 
-            append(as, &CONFIG.row[fileRow].render[CONFIG.colOffset], len);
+            char *c = &CONFIG.row[fileRow].render[CONFIG.colOffset];
+            unsigned char *hl = &CONFIG.row[fileRow].highlight[CONFIG.colOffset];
+            int current_color = -1;
+            for (int j = 0; j < len; j++)
+            {
+                if (c[j] == HL_NORMAL) {
+                    if (current_color != -1) {
+                        append(as, "\x1b[39m", 5);
+                        current_color = -1;
+                    }
+                    append(as, &c[j], 1);
+                }
+
+                else {
+                    int color = syntaxToColor(hl[j]);
+                    if (color != current_color) {
+                        current_color = color;
+                        char buf[16];
+                        int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", color);
+                        append(as, buf, clen);
+                    }
+                    append(as, &c[j], 1);
+                }
+            }
+            append(as, "\x1b[39m", 5);
         }
         // clear lines as we draw them
         append(as, "\x1b[K", 3);
@@ -1120,5 +1160,32 @@ void findCallback(char *query, int key)
             CONFIG.rowOffset = CONFIG.numRows;
             break;
         }
+    }
+}
+
+/*** syntax highlighting ***/
+
+void updateSyntax(editorRow *row)
+{
+    row->highlight = realloc(row->highlight, row->renderSize);
+    memset(row->highlight, HL_NORMAL, row->renderSize);
+
+    int i;
+    for (i = 0; i < row->renderSize; i++)
+    {
+        if (isdigit(row->render[i])) {
+            row->highlight[1] = HL_NUMBER;
+        }
+    }
+}
+
+
+int syntaxToColor(int hl)
+{
+    // based off colors from: https://en.wikipedia.org/wiki/ANSI_escape_code#Colors
+    switch(hl)
+    {
+        case HL_NUMBER: return 31;
+        default: return 37;
     }
 }
