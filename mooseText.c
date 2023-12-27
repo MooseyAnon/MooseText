@@ -46,6 +46,7 @@ struct editorSyntax
     char *filetype;
     char *singleline_comment_start;
     char **filematch;
+    char **keywords;
     int flags;
 };
 
@@ -162,6 +163,8 @@ enum HIGHLIGHT
 {
     HL_NORMAL = 0,
     HL_COMMENT,
+    HL_KEYWORDS1,
+    HL_KEYWORDS2,
     HL_STRING,
     HL_NUMBER,
     HL_MATCH,
@@ -183,6 +186,7 @@ struct editorSyntax HLDB[] = {
     {
         "c", "//",
         c_hl_extensions,
+        c_hl_keywords,
         HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
     }
 };
@@ -1236,6 +1240,9 @@ void updateSyntax(editorRow *row)
     memset(row->highlight, HL_NORMAL, row->renderSize);
 
     if (CONFIG.syntax == NULL) { return; }
+
+    char **keywords = CONFIG.syntax->keywords;
+
     char *scs = CONFIG.syntax->singleline_comment_start;
     int scs_len = scs ? strlen(scs) : 0;
     int prev_sep = 1;
@@ -1292,6 +1299,32 @@ void updateSyntax(editorRow *row)
             }
         }
 
+        if (prev_sep) {
+            int j;
+            for (j = 0; keywords[j]; j++)
+            {
+                int klen = strlen(keywords[j]);
+                int kw2 = keywords[j][klen - 1] == '|';
+
+                if (kw2) { klen--; }
+
+                if (
+                    !strncmp(&row->render[i], keywords[j], klen)
+                    && is_separator(row->render[i + klen])
+                ) {
+                    memset(
+                        &row->highlight[i],
+                        kw2 ? HL_KEYWORDS2 : HL_KEYWORDS1, klen
+                    );
+                    i += klen;
+                    break;
+                }
+            }
+
+            if (keywords[j] != NULL) {
+                prev_sep = 0;
+                continue;
+            }
         }
 
         prev_sep = is_separator(c);
@@ -1307,6 +1340,8 @@ int syntaxToColor(int hl)
     switch(hl)
     {
         case HL_COMMENT:
+        case HL_KEYWORDS1: return 33;
+        case HL_KEYWORDS2: return 32;
         case HL_STRING: return 35;
         case HL_NUMBER: return 31;
         case HL_MATCH: return 34;
