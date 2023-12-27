@@ -113,6 +113,8 @@ void initEditor();
 void insertChar(int);
 void insertNewLine();
 
+int is_separator(int);
+
 void processKeypress();
 
 char * prompt(char *, void (*callback)(char *, int));
@@ -1188,12 +1190,26 @@ void updateSyntax(editorRow *row)
     row->highlight = realloc(row->highlight, row->renderSize);
     memset(row->highlight, HL_NORMAL, row->renderSize);
 
-    int i;
-    for (i = 0; i < row->renderSize; i++)
+    int prev_sep = 1;
+    int i = 0;
+    while (i < row->renderSize)
     {
-        if (isdigit(row->render[i])) {
-            row->highlight[1] = HL_NUMBER;
+        char c = row->render[i];
+        unsigned char prev_hl = (i > 0) ? row->highlight[i - 1]: HL_NORMAL;
+            if (
+                (isdigit(c) && (prev_sep || prev_hl == HL_NUMBER))
+                || (c == '.' && prev_hl == HL_NUMBER)
+            ) {
+                row->highlight[i] = HL_NUMBER;
+                i++;
+                prev_sep = 0;
+                continue;
+            }
         }
+
+        prev_sep = is_separator(c);
+        i++;
+    }
     }
 }
 
@@ -1207,4 +1223,10 @@ int syntaxToColor(int hl)
         case HL_MATCH: return 34;
         default: return 37;
     }
+}
+
+
+int is_separator(int c)
+{
+    return isspace(c) || c == '\0' || strchr(",.()+-/*=~%<>[];", c) != NULL;
 }
