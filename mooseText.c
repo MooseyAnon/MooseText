@@ -28,6 +28,7 @@ struct appendString
 
 typedef struct editorRow
 {
+    int index;
     // stores a line of text as a pointer to dynamically alloc'ed
     // character data and its length
     int rowSize;
@@ -37,6 +38,7 @@ typedef struct editorRow
     char *render;
 
     unsigned char *highlight;
+    int highlight_open_comment;
 
 } editorRow;
 
@@ -45,6 +47,8 @@ struct editorSyntax
 {
     char *filetype;
     char *singleline_comment_start;
+    char *multiline_comment_start;
+    char *multiline_comment_end;
     char **filematch;
     char **keywords;
     int flags;
@@ -163,6 +167,7 @@ enum HIGHLIGHT
 {
     HL_NORMAL = 0,
     HL_COMMENT,
+    HL_MLCOMMENT,
     HL_KEYWORDS1,
     HL_KEYWORDS2,
     HL_STRING,
@@ -184,7 +189,7 @@ char *c_hl_keywords[] = {
 
 struct editorSyntax HLDB[] = {
     {
-        "c", "//",
+        "c", "//", "/*", "*/",
         c_hl_extensions,
         c_hl_keywords,
         HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
@@ -528,6 +533,7 @@ void editorDelRow(int at)
     memmove(&CONFIG.row[at], &CONFIG.row[at + 1],
         sizeof(editorRow) * (CONFIG.numRows - at - 1)
     );
+    for (int j = at; j <= CONFIG.numRows - 1; j++) { CONFIG.row[j].index--; }
     CONFIG.numRows--;
     CONFIG.dirty++;
 
@@ -606,7 +612,9 @@ void editorInsertRow(int at, char *s, size_t len)
         &CONFIG.row[at + 1], &CONFIG.row[at],
         sizeof(editorRow) * (CONFIG.numRows - at)
     );
+    for (int j = at + 1; j <= CONFIG.numRows; j++) { CONFIG.row[j].index++; }
 
+    CONFIG.row[at].index = at;
     CONFIG.row[at].rowSize = len;
     CONFIG.row[at].characters = malloc(len + 1);
 
@@ -617,6 +625,7 @@ void editorInsertRow(int at, char *s, size_t len)
     CONFIG.row[at].renderSize = 0;
     CONFIG.row[at].render = NULL;
     CONFIG.row[at].highlight = NULL;
+    CONFIG.row[at].highlight_open_comment = 0;
     editorUpdateRow(&CONFIG.row[at]);
 
     CONFIG.numRows++;
@@ -1260,9 +1269,19 @@ void updateSyntax(editorRow *row)
     char **keywords = CONFIG.syntax->keywords;
 
     char *scs = CONFIG.syntax->singleline_comment_start;
+    char *mcs = CONFIG.syntax->multiline_comment_start;
+    char *mce = CONFIG.syntax->multiline_comment_end;
+
     int scs_len = scs ? strlen(scs) : 0;
+    int mcs_len = mcs ? strlen(mcs) : 0;
+    int mce_len = mce ? strlen(mce) : 0;
+
     int prev_sep = 1;
     int in_string = 0;
+    int in_comment = (
+        row->index > 0 && CONFIG.row[row->index - 1].highlight_open_comment
+    );
+
     int i = 0;
     while (i < row->renderSize)
     {
@@ -1273,6 +1292,33 @@ void updateSyntax(editorRow *row)
             if (!strncmp(&row->render[i], scs, scs_len)) {
                 memset(&row->highlight[i], HL_COMMENT, row->renderSize - i);
                 break;
+            }
+        }
+
+        if (mcs_len && mce_len && !in_string) {
+            if (in_comment) {
+                row->highlight[i] = HL_MLCOMMENT;
+
+                if (!strncmp(&row->render[i], mce, mce_len)) {
+                    memset(&row->highlight[i], HL_MLCOMMENT, mce_len);
+
+                    i += mce_len;
+                    in_comment = 0;
+                    prev_sep = 1;
+                    continue;
+                }
+
+                else {
+                    i++;
+                    continue;
+                }
+            }
+
+            else if (!strncmp(&row->render[i], mcs, mcs_len)) {
+                memset(&row->highlight[i], HL_MLCOMMENT, mcs_len);
+                i += mcs_len;
+                in_comment = 1;
+                continue;
             }
         }
 
@@ -1346,6 +1392,11 @@ void updateSyntax(editorRow *row)
         prev_sep = is_separator(c);
         i++;
     }
+
+    int changed = (row->highlight_open_comment != in_comment);
+    row->highlight_open_comment = in_comment;
+    if (changed && row->index + 1 < CONFIG.numRows) {
+        updateSyntax(&CONFIG.row[row->index + 1]);
     }
 }
 
@@ -1356,6 +1407,7 @@ int syntaxToColor(int hl)
     switch(hl)
     {
         case HL_COMMENT:
+        case HL_MLCOMMENT: return 34;            
         case HL_KEYWORDS1: return 33;
         case HL_KEYWORDS2: return 32;
         case HL_STRING: return 35;
