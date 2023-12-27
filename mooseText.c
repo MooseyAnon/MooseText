@@ -88,6 +88,7 @@ struct editorConfig CONFIG;
 #define APPENDSTRING_INIT {NULL, 0}
 
 #define HL_HIGHLIGHT_NUMBERS (1 << 0)
+#define HL_HIGHLIGHT_STRINGS (1 << 1)
 
 /*** prototypes ***/
 
@@ -159,6 +160,7 @@ enum KEYS
 enum HIGHLIGHT
 {
     HL_NORMAL = 0,
+    HL_STRING,
     HL_NUMBER,
     HL_MATCH,
 };
@@ -179,7 +181,7 @@ struct editorSyntax HLDB[] = {
     {
         "c",
         c_hl_extensions,
-        HL_HIGHLIGHT_NUMBERS,
+        HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS,
     }
 };
 
@@ -1233,11 +1235,38 @@ void updateSyntax(editorRow *row)
 
     if (CONFIG.syntax == NULL) { return; }
     int prev_sep = 1;
+    int in_string = 0;
     int i = 0;
     while (i < row->renderSize)
     {
         char c = row->render[i];
         unsigned char prev_hl = (i > 0) ? row->highlight[i - 1]: HL_NORMAL;
+        if (CONFIG.syntax->flags & HL_HIGHLIGHT_STRINGS) {
+            if (in_string) {
+                row->highlight[i] = HL_STRING;
+
+                if (c == '\\' && i + 1 < row->renderSize) {
+                    row->highlight[i + 1] = HL_STRING;
+                    i += 2;
+                    continue;
+                }
+
+                if (c == in_string) { in_string = 0; }
+                i++;
+                prev_sep = 1;
+                continue;
+            }
+
+            else {
+                if (c == '"' || c == '\'') {
+                    in_string = c;
+                    row->highlight[i] = HL_STRING;
+                    i++;
+                    continue;
+                }
+            }
+        }
+
         if (CONFIG.syntax->flags & HL_HIGHLIGHT_NUMBERS) {
 
             if (
@@ -1265,6 +1294,7 @@ int syntaxToColor(int hl)
     // based off colors from: https://en.wikipedia.org/wiki/ANSI_escape_code#Colors
     switch(hl)
     {
+        case HL_STRING: return 35;
         case HL_NUMBER: return 31;
         case HL_MATCH: return 34;
         default: return 37;
