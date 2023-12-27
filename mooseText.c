@@ -997,9 +997,9 @@ void drawRows(struct appendString *as)
             char *c = &CONFIG.row[fileRow].render[CONFIG.colOffset];
             unsigned char *hl = &CONFIG.row[fileRow].highlight[CONFIG.colOffset];
             int current_color = -1;
-            for (int j = 0; j < len; j++)
+            int j;
+            for (j = 0; j < len; j++)
             {
-                if (c[j] == HL_NORMAL) {
                 if (iscntrl(c[j])) {
                     char sym = (c[j] <= 26) ? '@' + c[j] : '?';
                     append(as, "\x1b[7m", 4);
