@@ -41,6 +41,14 @@ typedef struct editorRow
 } editorRow;
 
 
+struct editorSyntax
+{
+    char *filetype;
+    char **filematch;
+    int flags;
+};
+
+
 struct editorConfig
 {
     int cursorX;
@@ -64,6 +72,7 @@ struct editorConfig
 
     int dirty;
 
+    struct editorSyntax *syntax;
     struct termios original_struct;
 };
 
@@ -77,6 +86,8 @@ struct editorConfig CONFIG;
 
 #define CTRL_KEY(k) ((k) & 0x1f)
 #define APPENDSTRING_INIT {NULL, 0}
+
+#define HL_HIGHLIGHT_NUMBERS (1 << 0)
 
 /*** prototypes ***/
 
@@ -126,6 +137,8 @@ void refreshScreen();
 void setStatusMessage(const char *, ...);
 int syntaxToColor(int);
 
+void selectSyntaxHighlight();
+
 void updateSyntax(editorRow *);
 
 enum KEYS
@@ -149,6 +162,28 @@ enum HIGHLIGHT
     HL_NUMBER,
     HL_MATCH,
 };
+
+/*** file types ***/
+
+char *c_hl_extensions[] = {".c", ".h", ".cpp", NULL};
+char *c_hl_keywords[] = {
+    "switch", "if", "while", "for", "break", "continue", "return", "else",
+    "struct", "union", "typedef", "static", "enum", "class", "case",
+
+    "int|", "long|", "double|", "float|", "char|", "unsigned|", "signed|",
+    "void|", "NULL|", NULL
+};
+
+
+struct editorSyntax HLDB[] = {
+    {
+        "c",
+        c_hl_extensions,
+        HL_HIGHLIGHT_NUMBERS,
+    }
+};
+
+#define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
 
 /*** init ***/
 
@@ -188,6 +223,8 @@ void initEditor()
     CONFIG.statusMsg_time = 0;
 
     CONFIG.dirty = 0;
+
+    CONFIG.syntax = NULL;
 
     if (getWindowSize(&CONFIG.screenRows, &CONFIG.screenCols) == -1) {
         die("getWindowSize");
@@ -373,6 +410,8 @@ void editorOpen(char *filename)
     free(CONFIG.filename);
     CONFIG.filename = strdup(filename);
 
+    selectSyntaxHighlight();
+
     FILE *fp = fopen(filename, "r");
     if (!fp) { die("fopen"); }
 
@@ -437,6 +476,7 @@ void editorSave()
             setStatusMessage("Save aborted!");
             return;
         }
+        selectSyntaxHighlight();
     }
 
     int len;
@@ -984,7 +1024,8 @@ void drawStatusBar(struct appendString *as)
         CONFIG.dirty ? "(modified)" : ""
     );
     int rlen = snprintf(
-        rstatus, sizeof(rstatus), "%d/%d",
+        rstatus, sizeof(rstatus), "%s | %d/%d",
+        CONFIG.syntax ? CONFIG.syntax->filetype : "no ft",
         CONFIG.cursorY + 1, CONFIG.numRows
     );
 
@@ -1190,12 +1231,15 @@ void updateSyntax(editorRow *row)
     row->highlight = realloc(row->highlight, row->renderSize);
     memset(row->highlight, HL_NORMAL, row->renderSize);
 
+    if (CONFIG.syntax == NULL) { return; }
     int prev_sep = 1;
     int i = 0;
     while (i < row->renderSize)
     {
         char c = row->render[i];
         unsigned char prev_hl = (i > 0) ? row->highlight[i - 1]: HL_NORMAL;
+        if (CONFIG.syntax->flags & HL_HIGHLIGHT_NUMBERS) {
+
             if (
                 (isdigit(c) && (prev_sep || prev_hl == HL_NUMBER))
                 || (c == '.' && prev_hl == HL_NUMBER)
@@ -1205,6 +1249,8 @@ void updateSyntax(editorRow *row)
                 prev_sep = 0;
                 continue;
             }
+        }
+
         }
 
         prev_sep = is_separator(c);
@@ -1222,6 +1268,40 @@ int syntaxToColor(int hl)
         case HL_NUMBER: return 31;
         case HL_MATCH: return 34;
         default: return 37;
+    }
+}
+
+
+void selectSyntaxHighlight()
+{
+    CONFIG.syntax = NULL;
+    if (CONFIG.filename == NULL) { return; }
+
+    char *ext = strrchr(CONFIG.filename, '.');
+
+    for (unsigned int j = 0; j < HLDB_ENTRIES; j++)
+    {
+        struct editorSyntax *s = &HLDB[j];
+
+        unsigned int i = 0;
+        while (s->filematch[i])
+        {
+            int is_ext = (s->filematch[i][0] == '.');
+            if (
+                (is_ext && ext && !strcmp(ext, s->filematch[i]))
+                || (!is_ext && strstr(CONFIG.filename, s->filematch[i]))
+            ) {
+                CONFIG.syntax = s;
+
+                int filerow;
+                for (filerow = 0; filerow < CONFIG.numRows; filerow++)
+                {
+                    updateSyntax(&CONFIG.row[filerow]);
+                }
+                return;
+            }
+            i++;
+        }
     }
 }
 
