@@ -991,6 +991,22 @@ void drawRows(struct appendString *as)
             for (int j = 0; j < len; j++)
             {
                 if (c[j] == HL_NORMAL) {
+                if (iscntrl(c[j])) {
+                    char sym = (c[j] <= 26) ? '@' + c[j] : '?';
+                    append(as, "\x1b[7m", 4);
+                    append(as, &sym, 1);
+                    append(as, "\x1b[m", 3);
+
+                    if (current_color != -1) {
+                        char buf[16];
+                        int clen = snprintf(
+                            buf, sizeof(buf), "\x1b[%dm", current_color
+                        );
+                        append(as, buf, clen);
+                    }
+                }
+
+                else if (hl[j] == HL_NORMAL) {
                     if (current_color != -1) {
                         append(as, "\x1b[39m", 5);
                         current_color = -1;
