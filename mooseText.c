@@ -145,6 +145,7 @@ enum HIGHLIGHT
 {
     HL_NORMAL = 0,
     HL_NUMBER,
+    HL_MATCH,
 };
 
 /*** init ***/
@@ -1158,6 +1159,7 @@ void findCallback(char *query, int key)
             CONFIG.cursorY = current;
             CONFIG.cursorX = editorRowCxToRx(row, match - row->render);
             CONFIG.rowOffset = CONFIG.numRows;
+            memset(&row->highlight[match - row->render], HL_MATCH, strlen(query));
             break;
         }
     }
@@ -1186,6 +1188,7 @@ int syntaxToColor(int hl)
     switch(hl)
     {
         case HL_NUMBER: return 31;
+        case HL_MATCH: return 34;
         default: return 37;
     }
 }
