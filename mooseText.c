@@ -1122,6 +1122,18 @@ void findCallback(char *query, int key)
     static int last_match = -1;
     static int direction = 1;
 
+    static int save_hl_line;
+    static char *saved_hl = NULL;
+
+    if (saved_hl) {
+        memcpy(
+            CONFIG.row[save_hl_line].highlight, saved_hl,
+            CONFIG.row[save_hl_line].renderSize
+        );
+        free(saved_hl);
+        saved_hl = NULL;
+    }
+
     if (key == '\r' || key == '\x1b') {
         last_match = -1;
         direction = 1;
@@ -1159,6 +1171,10 @@ void findCallback(char *query, int key)
             CONFIG.cursorY = current;
             CONFIG.cursorX = editorRowCxToRx(row, match - row->render);
             CONFIG.rowOffset = CONFIG.numRows;
+
+            save_hl_line = current;
+            saved_hl = malloc(row->renderSize);
+            memcpy(saved_hl, row->highlight, row->renderSize);
             memset(&row->highlight[match - row->render], HL_MATCH, strlen(query));
             break;
         }
