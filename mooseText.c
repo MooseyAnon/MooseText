@@ -701,6 +701,8 @@ void delChar()
     editorRow *row = &CONFIG.row[CONFIG.cursorY];
     if (CONFIG.cursorX > 0) {
         editorRowDelChar(row, CONFIG.cursorX - 1);
+        // this moves the cursor along with the deletion
+        CONFIG.cursorX--;
     }
 
     else {
@@ -833,8 +835,6 @@ void processKeypress()
         case DEL_KEY:
             if (c == DEL_KEY) { moveCursorKeypress(ARROW_RIGHT); }
             delChar();
-            // this moves the cursor along with the deletion
-            // moveCursorKeypress(ARROW_LEFT);
             break;
 
         case PAGE_UP:
