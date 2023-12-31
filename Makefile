@@ -15,6 +15,9 @@ mooseText: mooseText.c
 		-Wextra \
 		-pedantic \
 		-std=c99 \
+		-I $(current_dir) \
+		-I $(current_dir)/io \
+		-I $(current_dir)/ops
 
 clean:
 	rm mooseText
